@@ -1,10 +1,10 @@
 # sudo apt-get install pip libssl-dev
 # sudo pip install scp
 
-import os #path.expandUser("~/filename")
-import scp
+import os
 import subprocess
-import paramiko
+from scp import SCPClient
+from paramiko import AutoAddPolicy, SSHClient
 
 # Sunny@Macintosh || ~/Documents || rsync -rzP -e "ssh -p 9022" foot-locker worker@drone.local:~/rsync/
 _project_dir =  "~/Documents/"
@@ -23,20 +23,21 @@ _exclude_files = [".git/", "app/build/", ".gradle", ".idea", "*.apk"]
 _replace_files = {"local.properties" : "sdk.dir={}".format(_remote_sdk_dir)}
 _extra_files = {"~/.gradle/gradle.properties":"~/.gradle/gradle.properties"}
 
-
-def createSSHClient(server, port, user, password):
-    client = paramiko.SSHClient()
-    client.load_system_host_keys()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(server, port, user, password)
-    return client
-
+#####
 def preparePath(path):
     return os.path.expanduser(path)
 
-ssh = createSSHClient(_remote_server, _remote_port, _remote_user, password)
-scp = SCPClient(ssh.get_transport())
 
+#####
+def createSSHClient(server, port, user):
+    client = SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(AutoAddPolicy())
+    client.connect(server, port, user)  # assumes public key access via default keyfile
+    return client
+    ### Usage Example
+    # ssh = createSSHClient(_remote_server, _remote_port, _remote_user)
+    # scp = SCPClient(ssh.get_transport())
 
 #####
 def rsyncSourceDir():
