@@ -6,6 +6,7 @@ import os
 import subprocess
 from scp import SCPClient
 from paramiko import AutoAddPolicy, SSHClient
+import gradle
 
 # Sunny@Macintosh || ~/Documents || rsync -rzP -e "ssh -p 9022" foot-locker worker@drone.local:~/rsync/
 _project_dir =  "~/Documents/"
@@ -20,9 +21,13 @@ _remote_sdk_dir = "/usr/lib/android-sdk"
 
 _exclude_from = "/.gitignore"
 _exclude_files = [".git/", "app/build/", ".gradle", ".idea", "*.apk"]
-# IDEA: Parse .gitignore for exclude definitions
 _replace_files = {"local.properties" : "sdk.dir={}".format(_remote_sdk_dir)}
-_extra_files = {"~/.gradle/gradle.properties":"~/.gradle/gradle.properties"}
+
+_gradle_properties_path_local = "~/.gradle/gradle.properties"
+_gradle_properties_path_temp = "/.gradle.properties"
+_gradle_properties_path_remote = "/gradle.properties"
+_gradle_properties_add = {"sdk.dir":_remote_sdk_dir}
+_gradle_properties_remove = ["org.gradle.jvmargs"]
 
 #####
 def preparePath(path):
@@ -75,4 +80,11 @@ def rsyncSourceDir():
     ## Execute. #TODO Interpret the outcome of cmd
     subprocess.call(cmd)
 
-##
+####
+def generateGradleProps():
+    g = gradle.GradleProperties(preparePath(_gradle_properties_path_local))
+    g.addDict(_gradle_properties_add)
+    g.removeArray(_gradle_properties_remove)
+    return g.generate()
+
+print generateGradleProps()
