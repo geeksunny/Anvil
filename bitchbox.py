@@ -21,14 +21,14 @@ _remote_user = "worker"
 _remote_server = "drone.local"
 _remote_port = "9022"
 _remote_public_key = "~/.ssh/drone.pub"
-_remote_destination = "~/rsync/"
+_remote_destination_dir = "~/rsync/"
 _remote_sdk_dir = "/usr/lib/android-sdk"
 
-_exclude_from = "/.gitignore"
+_exclude_from_files = ["/.gitignore"]
 _exclude_files = [".git/", "app/build/", ".gradle", ".idea", "*.apk"]
 
 _gradle_properties_path_local = "~/.gradle/gradle.properties"
-_gradle_properties_path_remote = "gradle.properties"
+_gradle_properties_path_remote_filename = "gradle.properties"
 _gradle_properties_add = {"sdk.dir":_remote_sdk_dir}
 _gradle_properties_remove = ["org.gradle.jvmargs"]
 
@@ -99,6 +99,10 @@ class GradleProperties(object):
 #####
 class SourceSync(object):
 
+    localPath = preparePath("{}{}/".format(_project_dir, _project))
+    destPath = "{}{}/".format(_remote_destination_dir, _project)
+    tempGradlePropsFilepath = "{}/.gradle.properties".format(localPath)
+
     def __init__(self):
         super(SourceSync, self).__init__()
 
@@ -118,36 +122,61 @@ class SourceSync(object):
         return md5.hexdigest()
 
     #####
+    def rsyncCmd(self):
+        sshPort = 'ssh -p {}'.format(_remote_port)
+        cmd = ["rsync", "-zP", "-e", sshPort]
+        return cmd
 
     #####
-    def rsyncSourceDir(self):
+    def rsyncRemotePath(self, remoteFileDir):
+        return '{}@{}:{}'.format(_remote_user, _remote_server, remoteFileDir)
+
+    #####
+    def syncSourceDir(self):
         #TODO Logic for custom public key
-        #sshPort = 'ssh -p {} -i {}'.format(_remote_port, _remote_public_key)
-        sshPort = 'ssh -p {}'.format(_remote_port)
-        dest = '{}@{}:{}'.format(_remote_user, _remote_server, _remote_destination)
-        excludeFromFile = preparePath(_project_dir + _project + _exclude_from)
-        projectDir = preparePath(_project_dir + _project)
+        dest = self.rsyncRemotePath(self.destPath)
 
         ## Build the rsync command
-        cmd = ["rsync", "-rzP"]
+        rsync = self.rsyncCmd()
+        rsync.append("-r")
         for file in _exclude_files:
-           cmd.append('--exclude=\"{}\"'.format(file))
-        cmd.append("--exclude-from={}".format(excludeFromFile))
-        cmd.append("-e")
-        cmd.append(sshPort)
-        cmd.append(projectDir)
-        cmd.append(dest)
-        ## Execute. #TODO Interpret the outcome of cmd
-        subprocess.call(cmd)
+           rsync.append('--exclude=\"{}\"'.format(file))
+        for file in _exclude_from_files:
+            rsync.append("--exclude-from={}".format(file))
+        rsync.append("--exclude=\"{}\"".format(self.tempGradlePropsFilepath))
+        rsync.append(self.localPath)
+        rsync.append(dest)
+        ## Execute. #TODO Interpret the outcome of rsync
+        subprocess.call(rsync)
 
-    ####
+    #####
     def generateGradleProps(self):
         g = GradleProperties(preparePath(_gradle_properties_path_local))
         g.addDict(_gradle_properties_add)
         g.removeArray(_gradle_properties_remove)
         return g.generate()
 
+    #####
+    def updateGradleProperties(self):
+        newProps = self.generateGradleProps()
+        if os.path.exists(self.tempGradlePropsFilepath):
+            newMd5 = self.md5(newProps)
+            oldMd5 = self.md5File(self.tempGradlePropsFilepath)
+            if newMd5 == oldMd5:
+                return
+        with open(self.tempGradlePropsFilepath, 'w') as f:
+            f.write(newProps)
+            destFilename = "{}{}".format(self.destPath, _gradle_properties_path_remote_filename)
+            dest = self.rsyncRemotePath(destFilename)
+            rsync = self.rsyncCmd()
+            rsync.append(self.tempGradlePropsFilepath)
+            rsync.append(dest)
+            ## Execute. #TODO interpret outcome of rsync
+            subprocess.call(rsync)
+
 #####
 # RUNTIME
 #####
 sync = SourceSync()
+sync.syncSourceDir()
+sync.updateGradleProperties()
