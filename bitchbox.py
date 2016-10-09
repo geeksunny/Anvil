@@ -17,6 +17,7 @@ _remote_public_key = "~/.ssh/drone.pub"
 _remote_destination = "~/rsync/"
 _remote_sdk_dir = "/usr/lib/android-sdk"
 
+_exclude_from = "/.gitignore"
 _exclude_files = [".git/", "app/build/", ".gradle", ".idea", "*.apk"]
 # IDEA: Parse .gitignore for exclude definitions
 _replace_files = {"local.properties" : "sdk.dir={}".format(_remote_sdk_dir)}
@@ -37,21 +38,25 @@ ssh = createSSHClient(_remote_server, _remote_port, _remote_user, password)
 scp = SCPClient(ssh.get_transport())
 
 
-#TODO Logic for custom public key
-#sshPort = 'ssh -p {} -i {}'.format(_remote_port, _remote_public_key)
-sshPort = 'ssh -p {}'.format(_remote_port)
-dest = '{}@{}:{}'.format(_remote_user, _remote_server, _remote_destination)
+#####
+def rsyncSourceDir():
+    #TODO Logic for custom public key
+    #sshPort = 'ssh -p {} -i {}'.format(_remote_port, _remote_public_key)
+    sshPort = 'ssh -p {}'.format(_remote_port)
+    dest = '{}@{}:{}'.format(_remote_user, _remote_server, _remote_destination)
+    excludeFromFile = preparePath(_project_dir + _project + _exclude_from)
+    projectDir = preparePath(_project_dir + _project)
 
-## Build the rsync command
-cmd = ["rsync", "-rzP"]
-for file in _exclude_files:
-   cmd.append('--exclude=\"{}\"'.format(file))
-cmd.append("--exclude-from=/Users/Sunny/Documents/foot-locker/.gitignore")
-cmd.append("-e")
-cmd.append(sshPort)
-cmd.append(_project_dir + _project)
-cmd.append(dest)
-## Execute. #TODO Interpret the outcome of cmd
-subprocess.call(cmd)
+    ## Build the rsync command
+    cmd = ["rsync", "-rzP"]
+    for file in _exclude_files:
+       cmd.append('--exclude=\"{}\"'.format(file))
+    cmd.append("--exclude-from={}".format(excludeFromFile))
+    cmd.append("-e")
+    cmd.append(sshPort)
+    cmd.append(projectDir)
+    cmd.append(dest)
+    ## Execute. #TODO Interpret the outcome of cmd
+    subprocess.call(cmd)
 
 ##
