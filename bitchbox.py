@@ -1,6 +1,7 @@
 # sudo apt-get install pip libssl-dev
 # sudo pip install scp
 
+import hashlib
 import os
 import subprocess
 from scp import SCPClient
@@ -27,6 +28,20 @@ _extra_files = {"~/.gradle/gradle.properties":"~/.gradle/gradle.properties"}
 def preparePath(path):
     return os.path.expanduser(path)
 
+#####
+def md5(str):
+    return hashlib.md5(str).hexdigest()
+
+#####
+def md5File(fname):
+    md5 = hashlib.md5()
+    with open(fname, 'rb') as f:
+        while True:
+            data = f.read(4096)
+            if not data:
+                break
+            md5.update(data)
+    return md5.hexdigest()
 
 #####
 def createSSHClient(server, port, user):
