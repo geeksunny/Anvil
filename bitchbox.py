@@ -26,15 +26,11 @@ _remote_sdk_dir = "/usr/lib/android-sdk"
 
 _exclude_from = "/.gitignore"
 _exclude_files = [".git/", "app/build/", ".gradle", ".idea", "*.apk"]
-_replace_files = {"local.properties" : "sdk.dir={}".format(_remote_sdk_dir)}
 
 _gradle_properties_path_local = "~/.gradle/gradle.properties"
 _gradle_properties_path_remote = "gradle.properties"
-_gradle_properties_path_temp = ".gradle.properties"
 _gradle_properties_add = {"sdk.dir":_remote_sdk_dir}
 _gradle_properties_remove = ["org.gradle.jvmargs"]
-
-_dummy = "dummy"
 
 #####
 # GLOBAL FUNCTIONS
@@ -43,10 +39,22 @@ def preparePath(path):
     return os.path.expanduser(path)
 
 #####
+def createSSHClient(self, server, port, user):
+    client = SSHClient()
+    client.load_system_host_keys()
+    client.set_missing_host_key_policy(AutoAddPolicy())
+    client.connect(server, port, user)  # assumes public key access via default keyfile
+    return client
+    ### Usage Example
+    # ssh = createSSHClient(_remote_server, _remote_port, _remote_user)
+    # scp = SCPClient(ssh.get_transport())
+
+#####
 # CLASSES
 #####
 class GradleProperties(object):
 
+    KEY = "dummy"
     HEADER = "# auto-generated gradle.properties"
     config = None
 
@@ -54,7 +62,7 @@ class GradleProperties(object):
     def __init__(self, filename):
         self.config = ConfigParser(strict=False,interpolation=None)
         with open(filename) as f:
-            vfilestr = '[{}]\n{}'.format(_dummy, f.read())
+            vfilestr = '[{}]\n{}'.format(self.KEY, f.read())
             vfile = StringIO(vfilestr)
             self.config.read_file(vfile)
 
@@ -65,7 +73,7 @@ class GradleProperties(object):
 
     #####
     def add(self, key, val):
-        self.config.set(_dummy, key, val)
+        self.config.set(self.KEY, key, val)
 
     #####
     def removeArray(self, array):
@@ -74,12 +82,12 @@ class GradleProperties(object):
 
     #####
     def remove(self, key):
-        self.config.remove_option(_dummy, key)
+        self.config.remove_option(self.KEY, key)
 
     #####
     def generate(self):
         out = self.HEADER
-        for key, val in self.config[_dummy].iteritems():
+        for key, val in self.config[self.KEY].iteritems():
             out = "{}\n{}={}".format(out, key, val)
         return out
 
@@ -110,15 +118,6 @@ class SourceSync(object):
         return md5.hexdigest()
 
     #####
-    def createSSHClient(self, server, port, user):
-        client = SSHClient()
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(AutoAddPolicy())
-        client.connect(server, port, user)  # assumes public key access via default keyfile
-        return client
-        ### Usage Example
-        # ssh = createSSHClient(_remote_server, _remote_port, _remote_user)
-        # scp = SCPClient(ssh.get_transport())
 
     #####
     def rsyncSourceDir(self):
