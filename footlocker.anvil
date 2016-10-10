@@ -1,0 +1,31 @@
+{
+  "project_parent_dir":"~/Documents/",
+  "project_dir_name":"foot-locker",
+  "remote_user":"worker",
+  "remote_server":"drone.local",
+  "remote_port":"9022",
+  "remote_public_key":"~/.ssh/drone.pub",
+  "remote_destination_dir":"~/rsync/",
+  "exclude_from_files":[
+    ".gitignore"
+  ],
+  "exclude_files":[
+    ".git/",
+    "app/build/",
+    ".gradle",
+    ".idea",
+    "*.apk"
+  ],
+  "gradle_properties_path_local":"~/.gradle/gradle.properties",
+  "gradle_properties_path_remote":"gradle.properties",
+  "gradle_properties_add":{
+    "sdk.dir":"/usr/lib/android-sdk"
+  },
+  "gradle_properties_remove":[
+    "org.gradle.jvmargs"
+  ],
+  "meta":{
+    "key":"hazc9890csa22ll__-=2s",
+    "value":"dummyData!!!"
+  }
+}

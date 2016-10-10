@@ -2,9 +2,10 @@
 # sudo pip install scp
 
 import hashlib
+import json
 import os
 import subprocess
-from ConfigParser import ConfigParser
+from configparser import ConfigParser
 from StringIO import StringIO
 
 from paramiko import AutoAddPolicy, SSHClient
@@ -12,7 +13,7 @@ from paramiko import AutoAddPolicy, SSHClient
 #####
 # CONFIG
 #####
-# TODO: Move these variables into – 1) ArgParse, for command line invokation – 2) use JSON config files for easy project builds
+# TODO: Move these variables into - 1) ArgParse, for command line invokation - 2) use JSON config files for easy project builds
 # Sunny@Macintosh || ~/Documents || rsync -rzP -e "ssh -p 9022" foot-locker worker@drone.local:~/rsync/
 _project_dir =  "~/Documents/"
 _project =      "foot-locker"
@@ -22,14 +23,13 @@ _remote_server = "drone.local"
 _remote_port = "9022"
 _remote_public_key = "~/.ssh/drone.pub"
 _remote_destination_dir = "~/rsync/"
-_remote_sdk_dir = "/usr/lib/android-sdk"
 
 _exclude_from_files = ["/.gitignore"]
 _exclude_files = [".git/", "app/build/", ".gradle", ".idea", "*.apk"]
 
 _gradle_properties_path_local = "~/.gradle/gradle.properties"
 _gradle_properties_path_remote_filename = "gradle.properties"
-_gradle_properties_add = {"sdk.dir":_remote_sdk_dir}
+_gradle_properties_add = {"sdk.dir":"/usr/lib/android-sdk"}
 _gradle_properties_remove = ["org.gradle.jvmargs"]
 
 #####
@@ -52,15 +52,91 @@ def createSSHClient(self, server, port, user):
 #####
 # CLASSES
 #####
+class JsonConfig(object):
+
+    filename = ""
+    unknown_fields = {}
+
+    #####
+    def __init__(self, filename = ""):
+        if filename is not None and filename.__len__() != 0:
+            self.filename = preparePath(filename)
+            self.parse()
+
+    #####
+    def trimList(self, haystack = {}, needles = {}):
+        result = dict(haystack)
+        for key in needles.keys():
+            if result.has_key(key):
+                del result[key]
+        return result
+
+    #####
+    def stripFields(self, fields = {}):
+        result = dict(fields)
+        for key in fields.keys():
+            if key.startswith("__") and fields.has_key(key):
+                del result[key]
+        return result
+
+    #####
+    def parse(self):
+        fields = self.getFields()
+        if os.path.exists(self.filename):
+            with open(self.filename) as f:
+                cfg = json.load(f)
+                for key, value in cfg.iteritems():
+                    if fields.has_key(key):
+                        self.__setattr__(key, value)
+                    else:
+                        self.unknown_fields[key] = value
+
+    #####
+    def getFields(self):
+        subFields = self.__class__.__dict__
+        superFields = JsonConfig.__dict__
+        #fields = self.trimList(subFields, superFields)
+        fields = self.stripFields(subFields)
+        return fields
+
+#####
+class AnvilConfig(JsonConfig):
+
+    # Project file location
+    project_parent_dir = None
+    project_dir_name = None
+    # Remote
+    remote_user = None
+    remote_server = None
+    remote_port = None
+    remote_public_key = None
+    remote_destination_dir = None
+    # rsync
+    exclude_from_files = []
+    exclude_files = []
+    # gradle
+    gradle_properties_path_local = None
+    gradle_properties_path_remote_filename = None
+    gradle_properties_add = {}
+    gradle_properties_remove = []
+
+    #####
+    def __init__(self, filename):
+        super(AnvilConfig, self).__init__(filename)
+
+    # def test(self):
+
+#####
 class GradleProperties(object):
 
     KEY = "dummy"
     HEADER = "# auto-generated gradle.properties"
-    config = None
+    config = ConfigParser
 
     #####
     def __init__(self, filename):
         self.config = ConfigParser(strict=False,interpolation=None)
+        # self.config = ConfigParser.ConfigParser()
         with open(filename) as f:
             vfilestr = '[{}]\n{}'.format(self.KEY, f.read())
             vfile = StringIO(vfilestr)
@@ -99,12 +175,15 @@ class GradleProperties(object):
 #####
 class SourceSync(object):
 
+    thisconfig = AnvilConfig
+
     localPath = preparePath("{}{}/".format(_project_dir, _project))
     destPath = "{}{}/".format(_remote_destination_dir, _project)
     tempGradlePropsFilepath = "{}/.gradle.properties".format(localPath)
 
-    def __init__(self):
+    def __init__(self, config = AnvilConfig):
         super(SourceSync, self).__init__()
+        self.thisconfig = config
 
     #####
     def md5(self, str):
@@ -177,6 +256,7 @@ class SourceSync(object):
 #####
 # RUNTIME
 #####
-sync = SourceSync()
-sync.syncSourceDir()
-sync.updateGradleProperties()
+config = AnvilConfig('~/Documents/Anvil/footlocker.anvil')
+sync = SourceSync(config)
+# sync.syncSourceDir()
+# sync.updateGradleProperties()
