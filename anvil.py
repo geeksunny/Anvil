@@ -5,32 +5,18 @@ import hashlib
 import json
 import os
 import subprocess
-from configparser import ConfigParser
 from StringIO import StringIO
 
+from configparser import ConfigParser
 from paramiko import AutoAddPolicy, SSHClient
 
 #####
 # CONFIG
 #####
-# TODO: Move these variables into - 1) ArgParse, for command line invokation - 2) use JSON config files for easy project builds
+# TODO: Add ArgParse functionality for manual override of config file value
 # Sunny@Macintosh || ~/Documents || rsync -rzP -e "ssh -p 9022" foot-locker worker@drone.local:~/rsync/
-_project_dir =  "~/Documents/"
-_project =      "foot-locker"
 
-_remote_user = "worker"
-_remote_server = "drone.local"
-_remote_port = "9022"
-_remote_public_key = "~/.ssh/drone.pub"
-_remote_destination_dir = "~/rsync/"
-
-_exclude_from_files = ["/.gitignore"]
-_exclude_files = [".git/", "app/build/", ".gradle", ".idea", "*.apk"]
-
-_gradle_properties_path_local = "~/.gradle/gradle.properties"
-_gradle_properties_path_remote_filename = "gradle.properties"
-_gradle_properties_add = {"sdk.dir":"/usr/lib/android-sdk"}
-_gradle_properties_remove = ["org.gradle.jvmargs"]
+CONFIG_FILE = '~/Documents/Anvil/footlocker.anvil'
 
 #####
 # GLOBAL FUNCTIONS
@@ -134,7 +120,6 @@ class GradleProperties(object):
     #####
     def __init__(self, filename):
         self.config = ConfigParser(strict=False,interpolation=None)
-        # self.config = ConfigParser.ConfigParser()
         with open(filename) as f:
             vfilestr = '[{}]\n{}'.format(self.KEY, f.read())
             vfile = StringIO(vfilestr)
@@ -175,13 +160,16 @@ class SourceSync(object):
 
     thisconfig = AnvilConfig
 
-    localPath = preparePath("{}{}/".format(_project_dir, _project))
-    destPath = "{}{}/".format(_remote_destination_dir, _project)
-    tempGradlePropsFilepath = "{}/.gradle.properties".format(localPath)
+    localPath = ""
+    destPath = ""
+    tempGradlePropsFilepath = ""
 
     def __init__(self, config = AnvilConfig):
         super(SourceSync, self).__init__()
         self.thisconfig = config
+        self.localPath = preparePath("{}{}/".format(self.config.project_dir, self.config.project))
+        self.destPath = "{}{}/".format(self.config.remote_destination_dir, self.config.project)
+        self.tempGradlePropsFilepath = "{}/.gradle.properties".format(self.localPath)
 
     #####
     def md5(self, str):
@@ -200,13 +188,13 @@ class SourceSync(object):
 
     #####
     def rsyncCmd(self):
-        sshPort = 'ssh -p {}'.format(_remote_port)
+        sshPort = 'ssh -p {}'.format(self.config.remote_port)
         cmd = ["rsync", "-zP", "-e", sshPort]
         return cmd
 
     #####
     def rsyncRemotePath(self, remoteFileDir):
-        return '{}@{}:{}'.format(_remote_user, _remote_server, remoteFileDir)
+        return '{}@{}:{}'.format(self.config.remote_user, self.config.remote_server, remoteFileDir)
 
     #####
     def syncSourceDir(self):
@@ -216,9 +204,9 @@ class SourceSync(object):
         ## Build the rsync command
         rsync = self.rsyncCmd()
         rsync.append("-r")
-        for file in _exclude_files:
+        for file in self.config.exclude_files:
            rsync.append('--exclude=\"{}\"'.format(file))
-        for file in _exclude_from_files:
+        for file in self.config.exclude_from_files:
             rsync.append("--exclude-from={}".format(file))
         rsync.append("--exclude=\"{}\"".format(self.tempGradlePropsFilepath))
         rsync.append(self.localPath)
@@ -228,9 +216,9 @@ class SourceSync(object):
 
     #####
     def generateGradleProps(self):
-        g = GradleProperties(preparePath(_gradle_properties_path_local))
-        g.addDict(_gradle_properties_add)
-        g.removeArray(_gradle_properties_remove)
+        g = GradleProperties(preparePath(self.config.gradle_properties_path_local))
+        g.addDict(self.config.gradle_properties_add)
+        g.removeArray(self.config.gradle_properties_remove)
         return g.generate()
 
     #####
@@ -243,7 +231,7 @@ class SourceSync(object):
                 return
         with open(self.tempGradlePropsFilepath, 'w') as f:
             f.write(newProps)
-            destFilename = "{}{}".format(self.destPath, _gradle_properties_path_remote_filename)
+            destFilename = "{}{}".format(self.destPath, self.config.gradle_properties_path_remote_filename)
             dest = self.rsyncRemotePath(destFilename)
             rsync = self.rsyncCmd()
             rsync.append(self.tempGradlePropsFilepath)
@@ -254,7 +242,7 @@ class SourceSync(object):
 #####
 # RUNTIME
 #####
-config = AnvilConfig('~/Documents/Anvil/footlocker.anvil')
-sync = SourceSync(config)
+config = AnvilConfig(CONFIG_FILE)
+#sync = SourceSync(config)
 # sync.syncSourceDir()
 # sync.updateGradleProperties()
