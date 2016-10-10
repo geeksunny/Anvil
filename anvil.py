@@ -72,10 +72,10 @@ class JsonConfig(object):
         return result
 
     #####
-    def stripFields(self, fields = {}):
+    def stripFunctions(self, fields = {}):
         result = dict(fields)
-        for key in fields.keys():
-            if key.startswith("__") and fields.has_key(key):
+        for key, value in fields.iteritems():
+            if (isinstance(value, type(preparePath)) or (key.startswith("__"))) and fields.has_key(key):
                 del result[key]
         return result
 
@@ -94,9 +94,7 @@ class JsonConfig(object):
     #####
     def getFields(self):
         subFields = self.__class__.__dict__
-        superFields = JsonConfig.__dict__
-        #fields = self.trimList(subFields, superFields)
-        fields = self.stripFields(subFields)
+        fields = self.stripFunctions(subFields)
         return fields
 
 #####
