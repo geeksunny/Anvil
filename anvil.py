@@ -17,6 +17,7 @@ from paramiko import AutoAddPolicy, SSHClient
 # Sunny@Macintosh || ~/Documents || rsync -rzP -e "ssh -p 9022" foot-locker worker@drone.local:~/rsync/
 
 CONFIG_FILE = '~/Documents/Anvil/footlocker.anvil'
+# TODO: Make local anvil/ directory to hold the gradle.properties and retrieved builds
 
 #####
 # GLOBAL FUNCTIONS
@@ -260,10 +261,32 @@ class SourceSync(AnvilOperator):
             ## Execute. #TODO interpret outcome of rsync
             subprocess.call(rsync)
 
+class SourceBuilder(AnvilOperator):
+    """
+    Handles execution of the source build command and retreival of the console output.
+    """
+
+    def __init__(self, config=ConfigWrapper):
+        super(SourceBuilder, self).__init__(config)
+
+    # import paramiko, base64
+    # key = paramiko.RSAKey(data=base64.decodestring('AAA...'))
+    # client = paramiko.SSHClient()
+    # client.get_host_keys().add('ssh.example.com', 'ssh-rsa', key)
+    # client.connect('ssh.example.com', username='strongbad', password='thecheat')
+    # stdin, stdout, stderr = client.exec_command('ls')
+    # for line in stdout:
+    #     print '... ' + line.strip('\n')
+    # client.close()
+
 #####
 # RUNTIME
 #####
 config = AnvilConfig(CONFIG_FILE)
-#sync = SourceSync(config)
-# sync.syncSourceDir()
-# sync.updateGradleProperties()
+configWrapper = ConfigWrapper(config)
+
+sync = SourceSync(configWrapper)
+sync.syncSourceDir()
+sync.updateGradleProperties()
+
+build = SourceBuilder(configWrapper)
