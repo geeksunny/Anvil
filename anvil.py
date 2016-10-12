@@ -38,6 +38,7 @@ def createSSHClient(self, server, port, user):
 #####
 # CLASSES
 #####
+# noinspection PyDefaultArgument
 class JsonConfig(object):
 
     filename = ""
@@ -108,8 +109,6 @@ class AnvilConfig(JsonConfig):
     def __init__(self, filename):
         super(AnvilConfig, self).__init__(filename)
 
-    # def test(self):
-
 #####
 class GradleProperties(object):
 
@@ -156,20 +155,42 @@ class GradleProperties(object):
     # print gradle.generate()
 
 #####
-class SourceSync(object):
+class ConfigWrapper(object):
+    """
+    Just a dumb way to pass around the same references.
+    """
 
-    thisconfig = AnvilConfig
+    config = AnvilConfig
 
     localPath = ""
     destPath = ""
     tempGradlePropsFilepath = ""
 
     def __init__(self, config = AnvilConfig):
-        super(SourceSync, self).__init__()
-        self.thisconfig = config
-        self.localPath = preparePath("{}{}/".format(self.config.project_dir, self.config.project))
-        self.destPath = "{}{}/".format(self.config.remote_destination_dir, self.config.project)
+        super(ConfigWrapper, self).__init__()
+        self.config = config
+        self.localPath = preparePath("{}{}/".format(self.config.project_parent_dir, self.config.project_dir_name))
+        self.destPath = "{}{}/".format(self.config.remote_destination_dir, self.config.project_dir_name)
         self.tempGradlePropsFilepath = "{}/.gradle.properties".format(self.localPath)
+
+#####
+class AnvilOperator(object):
+
+    cfg = ConfigWrapper
+
+    def __init__(self, config = ConfigWrapper):
+        super(AnvilOperator, self).__init__()
+        self.cfg = config
+
+#####
+class SourceSync(AnvilOperator):
+    """
+    Handles the syncing of changes to local source code up to the build server.
+    Also creates the custom gradle.properties file that is synced.
+    """
+
+    def __init__(self, config=ConfigWrapper):
+        super(SourceSync, self).__init__(config)
 
     #####
     def md5(self, str):
@@ -188,53 +209,53 @@ class SourceSync(object):
 
     #####
     def rsyncCmd(self):
-        sshPort = 'ssh -p {}'.format(self.config.remote_port)
+        sshPort = 'ssh -p {}'.format(self.cfg.config.remote_port)
         cmd = ["rsync", "-zP", "-e", sshPort]
         return cmd
 
     #####
     def rsyncRemotePath(self, remoteFileDir):
-        return '{}@{}:{}'.format(self.config.remote_user, self.config.remote_server, remoteFileDir)
+        return '{}@{}:{}'.format(self.cfg.config.remote_user, self.cfg.config.remote_server, remoteFileDir)
 
     #####
     def syncSourceDir(self):
         #TODO Logic for custom public key
-        dest = self.rsyncRemotePath(self.destPath)
+        dest = self.rsyncRemotePath(self.cfg.destPath)
 
         ## Build the rsync command
         rsync = self.rsyncCmd()
         rsync.append("-r")
-        for file in self.config.exclude_files:
+        for file in self.cfg.config.exclude_files:
            rsync.append('--exclude=\"{}\"'.format(file))
-        for file in self.config.exclude_from_files:
+        for file in self.cfg.config.exclude_from_files:
             rsync.append("--exclude-from={}".format(file))
-        rsync.append("--exclude=\"{}\"".format(self.tempGradlePropsFilepath))
-        rsync.append(self.localPath)
+        rsync.append("--exclude=\"{}\"".format(self.cfg.tempGradlePropsFilepath))
+        rsync.append(self.cfg.localPath)
         rsync.append(dest)
         ## Execute. #TODO Interpret the outcome of rsync
         subprocess.call(rsync)
 
     #####
     def generateGradleProps(self):
-        g = GradleProperties(preparePath(self.config.gradle_properties_path_local))
-        g.addDict(self.config.gradle_properties_add)
-        g.removeArray(self.config.gradle_properties_remove)
+        g = GradleProperties(preparePath(self.cfg.config.gradle_properties_path_local))
+        g.addDict(self.cfg.config.gradle_properties_add)
+        g.removeArray(self.cfg.config.gradle_properties_remove)
         return g.generate()
 
     #####
     def updateGradleProperties(self):
         newProps = self.generateGradleProps()
-        if os.path.exists(self.tempGradlePropsFilepath):
+        if os.path.exists(self.cfg.tempGradlePropsFilepath):
             newMd5 = self.md5(newProps)
-            oldMd5 = self.md5File(self.tempGradlePropsFilepath)
+            oldMd5 = self.md5File(self.cfg.tempGradlePropsFilepath)
             if newMd5 == oldMd5:
                 return
-        with open(self.tempGradlePropsFilepath, 'w') as f:
+        with open(self.cfg.tempGradlePropsFilepath, 'w') as f:
             f.write(newProps)
-            destFilename = "{}{}".format(self.destPath, self.config.gradle_properties_path_remote_filename)
+            destFilename = "{}{}".format(self.cfg.destPath, self.cfg.config.gradle_properties_path_remote_filename)
             dest = self.rsyncRemotePath(destFilename)
             rsync = self.rsyncCmd()
-            rsync.append(self.tempGradlePropsFilepath)
+            rsync.append(self.cfg.tempGradlePropsFilepath)
             rsync.append(dest)
             ## Execute. #TODO interpret outcome of rsync
             subprocess.call(rsync)
