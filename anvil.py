@@ -10,6 +10,8 @@ from StringIO import StringIO
 from configparser import ConfigParser
 from paramiko import AutoAddPolicy, SSHClient
 
+# TODO: Config files live in ~/.anvil/ - A global config file can apply to everything and individual config files
+# TODO:     can replace [AND/OR supplement?] the global config. Command line arguments will take presedence over both.
 #####
 # CONFIG
 #####
@@ -17,6 +19,7 @@ from paramiko import AutoAddPolicy, SSHClient
 # Sunny@Macintosh || ~/Documents || rsync -rzP -e "ssh -p 9022" foot-locker worker@drone.local:~/rsync/
 
 CONFIG_FILE = '~/Documents/Anvil/footlocker.anvil'
+ANVIL_DIR_NAME = "anvil"
 # TODO: Make local anvil/ directory to hold the gradle.properties and retrieved builds
 
 #####
@@ -92,22 +95,24 @@ class JsonConfig(object):
 class AnvilConfig(JsonConfig):
 
     # Project file location
-    project_parent_dir = None
-    project_dir_name = None
+    project_parent_dir = ""
+    project_dir_name = ""
     # Remote
-    remote_user = None
-    remote_server = None
-    remote_port = None
-    remote_public_key = None
-    remote_destination_dir = None
+    remote_user = ""
+    remote_server = ""
+    remote_port = int
+    remote_public_key = ""
+    remote_destination_dir = ""
     # rsync
     exclude_from_files = []
     exclude_files = []
     # gradle
-    gradle_properties_path_local = None
-    gradle_properties_path_remote_filename = None
+    gradle_properties_path_local = ""
+    gradle_properties_path_remote = ""
     gradle_properties_add = {}
     gradle_properties_remove = []
+    gradle_local_properties_filename = ""
+    gradle_local_properties_contents = {}
 
     #####
     def __init__(self, filename):
@@ -117,7 +122,7 @@ class AnvilConfig(JsonConfig):
 class GradleProperties(object):
 
     KEY = "dummy"
-    HEADER = "# auto-generated gradle.properties"
+    HEADER = "# auto-generated gradle properties"
     config = ConfigParser
 
     #####
@@ -176,18 +181,24 @@ class ConfigWrapper(object):
         self.localPath = preparePath("{}{}/".format(self.config.project_parent_dir, self.config.project_dir_name))
         self.destPath = "{}{}/".format(self.config.remote_destination_dir, self.config.project_dir_name)
         self.tempGradlePropsFilepath = "{}/.gradle.properties".format(self.localPath)
+        self.setupLocalDir()
+
+    def setupLocalDir(self):
+        localDir = "{}{}/".format(self.localPath, ANVIL_DIR_NAME)
+        if not os.path.exists(localDir):
+            os.makedirs(localDir)
 
 #####
-class AnvilOperator(object):
+class AnvilTool(object):
 
     cfg = ConfigWrapper
 
     def __init__(self, config = ConfigWrapper):
-        super(AnvilOperator, self).__init__()
+        super(AnvilTool, self).__init__()
         self.cfg = config
 
 #####
-class SourceSync(AnvilOperator):
+class SourceSync(AnvilTool):
     """
     Handles the syncing of changes to local source code up to the build server.
     Also creates the custom gradle.properties file that is synced.
@@ -236,8 +247,6 @@ class SourceSync(AnvilOperator):
         rsync.append("--exclude=\"{}\"".format(self.cfg.tempGradlePropsFilepath))
         rsync.append(self.cfg.localPath)
         rsync.append(dest)
-        print rsync.c
-        quit()
         ## Execute. #TODO Interpret the outcome of rsync
         subprocess.call(rsync)
 
@@ -268,7 +277,7 @@ class SourceSync(AnvilOperator):
 
 
 
-class SourceBuilder(AnvilOperator):
+class SourceBuilder(AnvilTool):
     """
     Handles execution of the source build command and retreival of the console output.
     """
@@ -287,7 +296,7 @@ class SourceBuilder(AnvilOperator):
     def executeRemoteCommand(self, cmd=[]):
         self.initSshClient()
         cmd = "{}/gradlew -p {} assembleStagingDebug".format(self.cfg.destPath, self.cfg.destPath)
-        stdin, stdout, stderr = self.client.exec_command('./gradle')
+        stdin, stdout, stderr = self.client.exec_command(cmd)
         for line in stdout:
             print '... ' + line.strip('\n')
         self.client.close()
@@ -299,8 +308,9 @@ config = AnvilConfig(CONFIG_FILE)
 configWrapper = ConfigWrapper(config)
 
 sync = SourceSync(configWrapper)
-sync.syncSourceDir()
+# sync.syncSourceDir()
 sync.updateGradleProperties()
+sync.updateLocalProperties()
 
-build = SourceBuilder(configWrapper)
-build.executeRemoteCommand(None)
+# build = SourceBuilder(configWrapper)
+# build.executeRemoteCommand(None)
