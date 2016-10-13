@@ -26,11 +26,11 @@ def preparePath(path):
     return os.path.expanduser(path)
 
 #####
-def createSSHClient(self, server, port, user):
+def createSSHClient(server, port, user):
     client = SSHClient()
-    client.load_system_host_keys()
+    # client.load_system_host_keys()
     client.set_missing_host_key_policy(AutoAddPolicy())
-    client.connect(server, port, user)  # assumes public key access via default keyfile
+    client.connect(server, username=user, port=int(port))  # assumes public key access via default keyfile
     return client
     ### Usage Example
     # ssh = createSSHClient(_remote_server, _remote_port, _remote_user)
@@ -75,7 +75,10 @@ class JsonConfig(object):
                 cfg = json.load(f)
                 for key, value in cfg.iteritems():
                     if fields.has_key(key):
-                        self.__setattr__(key, value)
+                        if type(value) == type(u'a'):
+                            self.__setattr__(key, str(value))
+                        else:
+                            self.__setattr__(key, value)
                     else:
                         self.unknown_fields[key] = value
 
@@ -229,10 +232,12 @@ class SourceSync(AnvilOperator):
         for file in self.cfg.config.exclude_files:
            rsync.append('--exclude=\"{}\"'.format(file))
         for file in self.cfg.config.exclude_from_files:
-            rsync.append("--exclude-from={}".format(file))
+            rsync.append("--exclude-from={}{}".format(self.cfg.localPath, file))
         rsync.append("--exclude=\"{}\"".format(self.cfg.tempGradlePropsFilepath))
         rsync.append(self.cfg.localPath)
         rsync.append(dest)
+        print rsync.c
+        quit()
         ## Execute. #TODO Interpret the outcome of rsync
         subprocess.call(rsync)
 
@@ -261,23 +266,31 @@ class SourceSync(AnvilOperator):
             ## Execute. #TODO interpret outcome of rsync
             subprocess.call(rsync)
 
+
+
 class SourceBuilder(AnvilOperator):
     """
     Handles execution of the source build command and retreival of the console output.
     """
 
+    client = SSHClient
+
+    #####
     def __init__(self, config=ConfigWrapper):
         super(SourceBuilder, self).__init__(config)
 
-    # import paramiko, base64
-    # key = paramiko.RSAKey(data=base64.decodestring('AAA...'))
-    # client = paramiko.SSHClient()
-    # client.get_host_keys().add('ssh.example.com', 'ssh-rsa', key)
-    # client.connect('ssh.example.com', username='strongbad', password='thecheat')
-    # stdin, stdout, stderr = client.exec_command('ls')
-    # for line in stdout:
-    #     print '... ' + line.strip('\n')
-    # client.close()
+    #####
+    def initSshClient(self):
+        self.client = createSSHClient(self.cfg.config.remote_server, self.cfg.config.remote_port, self.cfg.config.remote_user)
+
+    #####
+    def executeRemoteCommand(self, cmd=[]):
+        self.initSshClient()
+        cmd = "{}/gradlew -p {} assembleStagingDebug".format(self.cfg.destPath, self.cfg.destPath)
+        stdin, stdout, stderr = self.client.exec_command('./gradle')
+        for line in stdout:
+            print '... ' + line.strip('\n')
+        self.client.close()
 
 #####
 # RUNTIME
@@ -290,3 +303,4 @@ sync.syncSourceDir()
 sync.updateGradleProperties()
 
 build = SourceBuilder(configWrapper)
+build.executeRemoteCommand(None)
