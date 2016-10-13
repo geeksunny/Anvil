@@ -76,14 +76,14 @@ class JsonConfig(object):
         if os.path.exists(self.filename):
             with open(self.filename) as f:
                 cfg = json.load(f)
-                for key, value in cfg.iteritems():
-                    if fields.has_key(key):
-                        if type(value) == type(u'a'):
-                            self.__setattr__(key, str(value))
-                        else:
-                            self.__setattr__(key, value)
+            for key, value in cfg.iteritems():
+                if fields.has_key(key):
+                    if type(value) == type(u'a'):
+                        self.__setattr__(key, str(value))
                     else:
-                        self.unknown_fields[key] = value
+                        self.__setattr__(key, value)
+                else:
+                    self.unknown_fields[key] = value
 
     #####
     def getFields(self):
@@ -128,6 +128,7 @@ class GradleProperties(object):
     #####
     def __init__(self, filename):
         self.config = ConfigParser(strict=False,interpolation=None)
+        self.config.optionxform = str
         with open(filename) as f:
             vfilestr = '[{}]\n{}'.format(self.KEY, f.read())
             vfile = StringIO(vfilestr)
