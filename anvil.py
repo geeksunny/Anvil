@@ -1,5 +1,5 @@
 # sudo apt-get install pip libssl-dev
-# sudo pip install scp
+# sudo pip install scp configparser
 
 import hashlib
 import json
@@ -20,13 +20,14 @@ from paramiko import AutoAddPolicy, SSHClient
 
 CONFIG_FILE = '~/Documents/Anvil/footlocker.anvil'
 ANVIL_DIR_NAME = "anvil"
-# TODO: Make local anvil/ directory to hold the gradle.properties and retrieved builds
+
 
 #####
 # GLOBAL FUNCTIONS
 #####
 def preparePath(path):
     return os.path.expanduser(path)
+
 
 #####
 def createSSHClient(server, port, user):
@@ -38,6 +39,7 @@ def createSSHClient(server, port, user):
     ### Usage Example
     # ssh = createSSHClient(_remote_server, _remote_port, _remote_user)
     # scp = SCPClient(ssh.get_transport())
+
 
 #####
 # CLASSES
@@ -124,6 +126,8 @@ class AnvilConfig(JsonConfig):
     gradle_properties_remove = []
     gradle_local_properties_filename = ""
     gradle_local_properties_contents = {}
+    gradle_build_wrapper_file = ""
+    gradle_build_wrapper_task = ""
 
     #####
     def __init__(self, filename):
@@ -133,7 +137,7 @@ class AnvilConfig(JsonConfig):
 class GradleProperties(object):
 
     KEY = "dummy"
-    HEADER = "# auto-generated gradle properties"
+    HEADER = "# auto-generated gradle properties\n"
     config = ConfigParser
 
     #####
@@ -167,7 +171,7 @@ class GradleProperties(object):
     def generate(self):
         out = self.HEADER
         for key, val in self.config[self.KEY].iteritems():
-            out = "{}\n{}={}".format(out, key, val)
+            out = "{}{}={}\n".format(out, key, val)
         return out
 
     # addProps = {"sdk.dir":"/usr/lib/android-sdk", "test_val":"neatoSK33t0"}
@@ -177,22 +181,18 @@ class GradleProperties(object):
 
 #####
 class ConfigWrapper(object):
-    """
-    Just a dumb way to pass around the same references.
-    """
+    """Just a dumb way to pass around the same references."""
 
     config = AnvilConfig
 
     localPath = ""
     destPath = ""
-    tempGradlePropsFilepath = ""
 
     def __init__(self, config = AnvilConfig):
         super(ConfigWrapper, self).__init__()
         self.config = config
         self.localPath = preparePath("{}{}/".format(self.config.project_parent_dir, self.config.project_dir_name))
         self.destPath = "{}{}/".format(self.config.remote_destination_dir, self.config.project_dir_name)
-        self.tempGradlePropsFilepath = "{}/.gradle.properties".format(self.localPath)
         self.setupLocalDir()
 
     def setupLocalDir(self):
@@ -211,10 +211,8 @@ class AnvilTool(object):
 
 #####
 class SourceSync(AnvilTool):
-    """
-    Handles the syncing of changes to local source code up to the build server.
-    Also creates the custom gradle.properties file that is synced.
-    """
+    """Handles the syncing of changes to local source code up to the build server.
+    Also creates the custom gradle.properties file that is synced."""
 
     def __init__(self, config=ConfigWrapper):
         super(SourceSync, self).__init__(config)
@@ -256,7 +254,6 @@ class SourceSync(AnvilTool):
            rsync.append('--exclude=\"{}\"'.format(file))
         for file in self.cfg.config.exclude_from_files:
             rsync.append("--exclude-from={}{}".format(self.cfg.localPath, file))
-        rsync.append("--exclude=\"{}\"".format(self.cfg.tempGradlePropsFilepath))
         rsync.append(self.cfg.localPath)
         rsync.append(dest)
         ## Execute. #TODO Interpret the outcome of rsync
@@ -270,29 +267,42 @@ class SourceSync(AnvilTool):
         return g.generate()
 
     #####
-    def updateGradleProperties(self):
-        newProps = self.generateGradleProps()
-        if os.path.exists(self.cfg.tempGradlePropsFilepath):
-            newMd5 = self.md5(newProps)
-            oldMd5 = self.md5File(self.cfg.tempGradlePropsFilepath)
+    def generateLocalProps(self):
+        out = GradleProperties.HEADER
+        for key, val in self.cfg.config.gradle_local_properties_contents.iteritems():
+            out = "{}{}={}\n".format(out, key, val)
+        return out
+
+    #####
+    def generateAndSyncFile(self, contents="", filename=""):
+        localFilepath = "{}{}/{}".format(self.cfg.localPath, ANVIL_DIR_NAME, filename)
+        if os.path.exists(localFilepath):
+            newMd5 = self.md5(contents)
+            oldMd5 = self.md5File(localFilepath)
             if newMd5 == oldMd5:
                 return
-        with open(self.cfg.tempGradlePropsFilepath, 'w') as f:
-            f.write(newProps)
-            destFilename = "{}{}".format(self.cfg.destPath, self.cfg.config.gradle_properties_path_remote_filename)
-            dest = self.rsyncRemotePath(destFilename)
-            rsync = self.rsyncCmd()
-            rsync.append(self.cfg.tempGradlePropsFilepath)
-            rsync.append(dest)
-            ## Execute. #TODO interpret outcome of rsync
-            subprocess.call(rsync)
+        with open(localFilepath, 'w') as f:
+            f.write(contents)
+        destFilename = "{}{}".format(self.cfg.destPath, filename)
+        dest = self.rsyncRemotePath(destFilename)
+        rsync = self.rsyncCmd()
+        rsync.append(localFilepath)
+        rsync.append(dest)
+        ## Execute. #TODO interpret outcome of rsync
+        subprocess.call(rsync)
 
+    #####
+    def updateGradleProperties(self):
+        newProps = self.generateGradleProps()
+        self.generateAndSyncFile(newProps, self.cfg.config.gradle_properties_path_remote)
 
+    #####
+    def updateLocalProperties(self):
+        localProps = self.generateLocalProps()
+        self.generateAndSyncFile(localProps, self.cfg.config.gradle_local_properties_filename)
 
 class SourceBuilder(AnvilTool):
-    """
-    Handles execution of the source build command and retreival of the console output.
-    """
+    """Handles execution of the source build command and retreival of the console output."""
 
     client = SSHClient
 
@@ -307,10 +317,13 @@ class SourceBuilder(AnvilTool):
     #####
     def executeRemoteCommand(self, cmd=[]):
         self.initSshClient()
-        cmd = "{}/gradlew -p {} assembleStagingDebug".format(self.cfg.destPath, self.cfg.destPath)
+        cmd = "{}{} -p {} {}".format(self.cfg.destPath, self.cfg.config.gradle_build_wrapper_file,
+                                      self.cfg.destPath, self.cfg.config.gradle_build_wrapper_task)
         stdin, stdout, stderr = self.client.exec_command(cmd)
         for line in stdout:
-            print '... ' + line.strip('\n')
+            print 'O: ' + line.strip('\n')
+        for line in stderr:
+            print 'E: ' + line.strip('\n')
         self.client.close()
 
 #####
@@ -320,9 +333,9 @@ config = AnvilConfig(CONFIG_FILE)
 configWrapper = ConfigWrapper(config)
 
 sync = SourceSync(configWrapper)
-# sync.syncSourceDir()
+sync.syncSourceDir()
 sync.updateGradleProperties()
 sync.updateLocalProperties()
 
-# build = SourceBuilder(configWrapper)
-# build.executeRemoteCommand(None)
+build = SourceBuilder(configWrapper)
+build.executeRemoteCommand(None)
