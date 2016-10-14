@@ -45,51 +45,62 @@ def createSSHClient(server, port, user):
 # noinspection PyDefaultArgument
 class JsonConfig(object):
 
+    TYPE_MAPPING = {unicode: str}
+
     filename = ""
     unknown_fields = {}
 
     #####
-    def __init__(self, filename = ""):
+    @staticmethod
+    def trimlist(haystack={}, needles={}):
+        result = dict(haystack)
+        for key in needles.keys():
+            if key in result:
+                del result[key]
+        return result
+
+    #####
+    @staticmethod
+    def stripfunctions(fields={}):
+        result = dict(fields)
+        for key, value in fields.iteritems():
+            if (isinstance(value, type(preparePath)) or (key.startswith("__"))) and key in fields:
+                del result[key]
+        return result
+
+    #####
+    def __init__(self, filename=""):
         if filename is not None and filename.__len__() != 0:
             self.filename = preparePath(filename)
             self.parse()
 
     #####
-    def trimList(self, haystack = {}, needles = {}):
-        result = dict(haystack)
-        for key in needles.keys():
-            if result.has_key(key):
-                del result[key]
-        return result
-
-    #####
-    def stripFunctions(self, fields = {}):
-        result = dict(fields)
-        for key, value in fields.iteritems():
-            if (isinstance(value, type(preparePath)) or (key.startswith("__"))) and fields.has_key(key):
-                del result[key]
-        return result
+    def getvalue(self, value):
+        _typefrom = type(value)
+        if _typefrom in self.TYPE_MAPPING:
+            _typeto = self.TYPE_MAPPING[_typefrom]
+            return _typeto(value)
+        else:
+            return value
 
     #####
     def parse(self):
-        fields = self.getFields()
+        fields = self.getfields()
         if os.path.exists(self.filename):
             with open(self.filename) as f:
                 cfg = json.load(f)
             for key, value in cfg.iteritems():
-                if fields.has_key(key):
-                    if type(value) == type(u'a'):
-                        self.__setattr__(key, str(value))
-                    else:
-                        self.__setattr__(key, value)
+                if key in fields:
+                    self.__setattr__(key, self.getvalue(value))
                 else:
-                    self.unknown_fields[key] = value
+                    self.unknown_fields[key] = self.getvalue(value)
 
     #####
-    def getFields(self):
-        subFields = self.__class__.__dict__
-        fields = self.stripFunctions(subFields)
+    def getfields(self):
+        sub_fields = self.__class__.__dict__
+        fields = self.stripfunctions(sub_fields)
         return fields
+
 
 #####
 class AnvilConfig(JsonConfig):
