@@ -1,9 +1,9 @@
 {
   "project_parent_dir":"~/Documents/",
-  "project_dir_name":"foot-locker",
+  "project_dir_name":"ac-moore",
   "remote_user":"worker",
   "remote_server":"drone.local",
-  "remote_port":"9022",
+  "remote_port":9022,
   "remote_public_key":"~/.ssh/drone.pub",
   "remote_destination_dir":"~/rsync/",
   "exclude_from_files":[
@@ -14,16 +14,24 @@
     "app/build/",
     ".gradle",
     ".idea",
-    "*.apk"
+    "*.apk",
+    "/gradle.properties",
+    "/anvil"
   ],
   "gradle_properties_path_local":"~/.gradle/gradle.properties",
   "gradle_properties_path_remote":"gradle.properties",
   "gradle_properties_add":{
-    "sdk.dir":"/usr/lib/android-sdk"
+    "org.gradle.java.home":"/usr/lib/jvm/java-8-openjdk-amd64/jre"
   },
   "gradle_properties_remove":[
     "org.gradle.jvmargs"
   ],
+  "gradle_local_properties_filename":"local.properties",
+  "gradle_local_properties_contents":{
+    "sdk.dir":"/home/worker/android-sdk-linux"
+  },
+  "gradle_build_wrapper_file":"gradlew",
+  "gradle_build_wrapper_task":"assembleStagingDebug",
   "meta":{
     "key":"hazc9890csa22ll__-=2s",
     "value":"dummyData!!!"
