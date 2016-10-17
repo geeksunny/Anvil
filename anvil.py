@@ -185,6 +185,7 @@ class ConfigWrapper(object):
     """Just a dumb way to pass around the same references."""
 
     config = AnvilConfig
+    client = SSHClient
 
     localPath = ""
     destPath = ""
@@ -200,6 +201,12 @@ class ConfigWrapper(object):
         localDir = "{}{}/".format(self.localPath, ANVIL_DIR_NAME)
         if not os.path.exists(localDir):
             os.makedirs(localDir)
+
+    #####
+    def initSshClient(self):
+        if self.client == SSHClient:
+            self.client = createSSHClient(self.config.remote_server, self.config.remote_port, self.config.remote_user)
+
 
 #####
 class AnvilTool(object):
@@ -303,29 +310,23 @@ class SourceSync(AnvilTool):
         self.generateAndSyncFile(localProps, self.cfg.config.gradle_local_properties_filename)
 
 class SourceBuilder(AnvilTool):
-    """Handles execution of the source build command and retreival of the console output."""
-
-    client = SSHClient
+    """Handles execution of the source build command and retrieval of the console output."""
 
     #####
     def __init__(self, config=ConfigWrapper):
         super(SourceBuilder, self).__init__(config)
 
     #####
-    def initSshClient(self):
-        self.client = createSSHClient(self.cfg.config.remote_server, self.cfg.config.remote_port, self.cfg.config.remote_user)
-
-    #####
     def executeRemoteCommand(self, cmd=[]):
-        self.initSshClient()
+        self.cfg.initSshClient()
         cmd = "{}{} -p {} {}".format(self.cfg.destPath, self.cfg.config.gradle_build_wrapper_file,
                                       self.cfg.destPath, self.cfg.config.gradle_build_wrapper_task)
-        stdin, stdout, stderr = self.client.exec_command(cmd)
+        stdin, stdout, stderr = self.cfg.client.exec_command(cmd)
         for line in stdout:
             print 'O: ' + line.strip('\n')
         for line in stderr:
             print 'E: ' + line.strip('\n')
-        self.client.close()
+        self.cfg.client.close()
 
 #####
 # RUNTIME
