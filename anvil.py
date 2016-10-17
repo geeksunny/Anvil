@@ -26,12 +26,12 @@ ANVIL_DIR_NAME = "anvil"
 #####
 # GLOBAL FUNCTIONS
 #####
-def preparePath(path):
+def prepare_path(path):
     return os.path.expanduser(path)
 
 
 #####
-def createSSHClient(server, port, user):
+def create_ssh_client(server, port, user):
     client = SSHClient()
     # client.load_system_host_keys()
     client.set_missing_host_key_policy(AutoAddPolicy())
@@ -67,14 +67,14 @@ class JsonConfig(object):
     def stripfunctions(fields={}):
         result = dict(fields)
         for key, value in fields.iteritems():
-            if (isinstance(value, type(preparePath)) or (key.startswith("__"))) and key in fields:
+            if (isinstance(value, type(prepare_path)) or (key.startswith("__"))) and key in fields:
                 del result[key]
         return result
 
     #####
     def __init__(self, filename=""):
         if filename is not None and filename.__len__() != 0:
-            self.filename = preparePath(filename)
+            self.filename = prepare_path(filename)
             self.parse()
 
     #####
@@ -189,24 +189,26 @@ class ConfigWrapper(object):
     config = AnvilConfig
     ssh_client = SSHClient
 
-    localPath = ""
-    destPath = ""
+    local_path = ""
+    dest_path = ""
 
+    #####
     def __init__(self, config = AnvilConfig):
         super(ConfigWrapper, self).__init__()
         self.config = config
-        self.localPath = preparePath("{}{}/".format(self.config.project_parent_dir, self.config.project_dir_name))
-        self.destPath = "{}{}/".format(self.config.remote_destination_dir, self.config.project_dir_name)
+        self.local_path = prepare_path("{}{}/".format(self.config.project_parent_dir, self.config.project_dir_name))
+        self.dest_path = "{}{}/".format(self.config.remote_destination_dir, self.config.project_dir_name)
         self.setupLocalDir()
 
+    #####
     def setupLocalDir(self):
-        localDir = "{}{}/".format(self.localPath, ANVIL_DIR_NAME)
+        localDir = "{}{}/".format(self.local_path, ANVIL_DIR_NAME)
         if not os.path.exists(localDir):
             os.makedirs(localDir)
 
     #####
     def create_ssh_client(self):
-        self.ssh_client = createSSHClient(self.config.remote_server, self.config.remote_port, self.config.remote_user)
+        self.ssh_client = create_ssh_client(self.config.remote_server, self.config.remote_port, self.config.remote_user)
 
 
 #####
@@ -214,6 +216,7 @@ class AnvilTool(object):
 
     cfg = ConfigWrapper
 
+    #####
     def __init__(self, config = ConfigWrapper):
         super(AnvilTool, self).__init__()
         self.cfg = config
@@ -231,7 +234,7 @@ class SourceSync(AnvilTool):
         return hashlib.md5(str).hexdigest()
 
     #####
-    def md5File(self, fname):
+    def md5file(self, fname):
         md5 = hashlib.md5()
         with open(fname, 'rb') as f:
             while True:
@@ -242,28 +245,28 @@ class SourceSync(AnvilTool):
         return md5.hexdigest()
 
     #####
-    def rsyncCmd(self):
+    def rsync_cmd(self):
         sshPort = 'ssh -p {}'.format(self.cfg.config.remote_port)
         cmd = ["rsync", "-zP", "-e", sshPort]
         return cmd
 
     #####
-    def rsyncRemotePath(self, remoteFileDir):
+    def rsync_remote_path(self, remoteFileDir):
         return '{}@{}:{}'.format(self.cfg.config.remote_user, self.cfg.config.remote_server, remoteFileDir)
 
     #####
-    def syncSourceDir(self):
+    def sync_project_source(self):
         #TODO Logic for custom public key
-        dest = self.rsyncRemotePath(self.cfg.destPath)
+        dest = self.rsync_remote_path(self.cfg.dest_path)
 
         ## Build the rsync command
-        rsync = self.rsyncCmd()
+        rsync = self.rsync_cmd()
         rsync.append("-r")
         for file in self.cfg.config.exclude_files:
            rsync.append('--exclude={}'.format(file))
         for file in self.cfg.config.exclude_from_files:
-            rsync.append("--exclude-from={}{}".format(self.cfg.localPath, file))
-        rsync.append(self.cfg.localPath)
+            rsync.append("--exclude-from={}{}".format(self.cfg.local_path, file))
+        rsync.append(self.cfg.local_path)
         rsync.append(dest)
         ## Execute. #TODO Interpret the outcome of rsync
         subprocess.call(rsync)
@@ -271,7 +274,7 @@ class SourceSync(AnvilTool):
 
     #####
     def generateGradleProps(self):
-        g = GradleProperties(preparePath(self.cfg.config.gradle_properties_path_local))
+        g = GradleProperties(prepare_path(self.cfg.config.gradle_properties_path_local))
         g.addDict(self.cfg.config.gradle_properties_add)
         g.removeArray(self.cfg.config.gradle_properties_remove)
         return g.generate()
@@ -285,32 +288,34 @@ class SourceSync(AnvilTool):
 
     #####
     def generateAndSyncFile(self, contents="", filename=""):
-        localFilepath = "{}{}/{}".format(self.cfg.localPath, ANVIL_DIR_NAME, filename)
+        localFilepath = "{}{}/{}".format(self.cfg.local_path, ANVIL_DIR_NAME, filename)
         if os.path.exists(localFilepath):
             newMd5 = self.md5(contents)
-            oldMd5 = self.md5File(localFilepath)
+            oldMd5 = self.md5file(localFilepath)
             if newMd5 == oldMd5:
                 return
         with open(localFilepath, 'w') as f:
             f.write(contents)
-        destFilename = "{}{}".format(self.cfg.destPath, filename)
-        dest = self.rsyncRemotePath(destFilename)
-        rsync = self.rsyncCmd()
+        destFilename = "{}{}".format(self.cfg.dest_path, filename)
+        dest = self.rsync_remote_path(destFilename)
+        rsync = self.rsync_cmd()
         rsync.append(localFilepath)
         rsync.append(dest)
         ## Execute. #TODO interpret outcome of rsync
         subprocess.call(rsync)
 
     #####
-    def updateGradleProperties(self):
+    def update_gradle_properties(self):
         newProps = self.generateGradleProps()
         self.generateAndSyncFile(newProps, self.cfg.config.gradle_properties_path_remote)
 
     #####
-    def updateLocalProperties(self):
+    def update_local_properties(self):
         localProps = self.generateLocalProps()
         self.generateAndSyncFile(localProps, self.cfg.config.gradle_local_properties_filename)
 
+
+#####
 class SourceBuilder(AnvilTool):
     """Handles execution of the source build command and retrieval of the console output."""
 
@@ -319,10 +324,8 @@ class SourceBuilder(AnvilTool):
         super(SourceBuilder, self).__init__(config)
 
     #####
-    def executeRemoteCommand(self, cmd=[]):
+    def execute_remote_command(self, cmd=""):
         self.cfg.create_ssh_client()
-        cmd = "{}{} -p {} {}".format(self.cfg.destPath, self.cfg.config.gradle_build_wrapper_file,
-                                      self.cfg.destPath, self.cfg.config.gradle_build_wrapper_task)
         stdin, stdout, stderr = self.cfg.ssh_client.exec_command(cmd)
         for line in stdout:
             print 'O: ' + line.strip('\n')
@@ -330,7 +333,14 @@ class SourceBuilder(AnvilTool):
             print 'E: ' + line.strip('\n')
             self.cfg.ssh_client.close()
 
+    #####
+    def build_project(self):
+        cmd = "{}{} -p {} {}".format(self.cfg.dest_path, self.cfg.config.gradle_build_wrapper_file,
+                                     self.cfg.dest_path, self.cfg.config.gradle_build_wrapper_task)
+        self.execute_remote_command(cmd)
 
+
+#####
 class FilePuller(AnvilTool):
 
     scp_client = SCPClient
@@ -342,15 +352,17 @@ class FilePuller(AnvilTool):
         self.scp_client = SCPClient(self.cfg.ssh_client.get_transport())
 
     #####
-    def pullfile(self, remote_filename="", local_filename=""):
+    def pull_file(self, remote_filename="", local_filename=""):
         self.scp_client.get(remote_filename, local_filename)
         print "File pulled: {}".format(local_filename)
 
+    #####
     def get_result(self):
-        remote_filename = "{}{}{}".format(self.cfg.destPath, self.cfg.config.remote_result_dir,
-                                   self.cfg.config.remote_result_file)
-        local_filename = "{}{}/{}".format(self.cfg.localPath, ANVIL_DIR_NAME, self.cfg.config.remote_result_file)
-        self.pullfile(remote_filename, local_filename)
+        remote_filename = "{}{}{}".format(self.cfg.dest_path, self.cfg.config.remote_result_dir,
+                                          self.cfg.config.remote_result_file)
+        local_filename = "{}{}/{}".format(self.cfg.local_path, ANVIL_DIR_NAME, self.cfg.config.remote_result_file)
+        self.pull_file(remote_filename, local_filename)
+
 
 #####
 # RUNTIME
@@ -359,12 +371,12 @@ config = AnvilConfig(CONFIG_FILE)
 configWrapper = ConfigWrapper(config)
 
 sync = SourceSync(configWrapper)
-sync.syncSourceDir()
-sync.updateGradleProperties()
-sync.updateLocalProperties()
+sync.sync_project_source()
+sync.update_gradle_properties()
+sync.update_local_properties()
 
 build = SourceBuilder(configWrapper)
-build.executeRemoteCommand(None)
+build.build_project()
 
 pull = FilePuller(configWrapper)
 pull.get_result()
