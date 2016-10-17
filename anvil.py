@@ -353,8 +353,14 @@ class FilePuller(AnvilTool):
 
     #####
     def pull_file(self, remote_filename="", local_filename=""):
+        if os.path.exists(local_filename):
+            os.remove(local_filename)
+        print "\nRemote file: {}\nLocal destination: {}".format(remote_filename, local_filename)
         self.scp_client.get(remote_filename, local_filename)
-        print "File pulled: {}".format(local_filename)
+        if os.path.exists(local_filename):
+            print "File pulled!"
+        else:
+            print "Error pulling file."
 
     #####
     def get_result(self):
