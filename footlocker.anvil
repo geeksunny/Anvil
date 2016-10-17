@@ -6,7 +6,8 @@
   "remote_port":9022,
   "remote_public_key":"~/.ssh/drone.pub",
   "remote_destination_dir":"~/rsync/",
-  "remote_result_file":"app/build/outputs/apk/app-staging-debug.apk",
+  "remote_result_dir":"app/build/outputs/apk/",
+  "remote_result_file":"app-staging-debug.apk",
   "exclude_from_files":[
     ".gitignore"
   ],
@@ -16,13 +17,14 @@
     ".gradle",
     ".idea",
     "*.apk",
-    "/gradle.properties",
-    "/anvil"
+    "gradle.properties",
+    "anvil"
   ],
   "gradle_properties_path_local":"~/.gradle/gradle.properties",
   "gradle_properties_path_remote":"gradle.properties",
   "gradle_properties_add":{
-    "org.gradle.java.home":"/usr/lib/jvm/java-8-openjdk-amd64/jre"
+    "org.gradle.java.home":"/usr/lib/jvm/java-8-openjdk-amd64",
+    "org.gradle.jvmargs":"-Xmx2048m -XX:MaxPermSize=512m -XX:+HeapDumpOnOutOfMemoryError -Dfile.encoding=UTF-8"
   },
   "gradle_properties_remove":[
     "org.gradle.jvmargs"

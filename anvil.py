@@ -9,6 +9,7 @@ from StringIO import StringIO
 
 from configparser import ConfigParser
 from paramiko import AutoAddPolicy, SSHClient
+from scp import SCPClient
 
 # TODO: Config files live in ~/.anvil/ - A global config file can apply to everything and individual config files
 # TODO:     can replace [AND/OR supplement?] the global config. Command line arguments will take presedence over both.
@@ -116,6 +117,7 @@ class AnvilConfig(JsonConfig):
     remote_port = int
     remote_public_key = ""
     remote_destination_dir = ""
+    remote_result_dir = ""
     remote_result_file = ""
     # rsync
     exclude_from_files = []
@@ -185,7 +187,7 @@ class ConfigWrapper(object):
     """Just a dumb way to pass around the same references."""
 
     config = AnvilConfig
-    client = SSHClient
+    ssh_client = SSHClient
 
     localPath = ""
     destPath = ""
@@ -203,9 +205,8 @@ class ConfigWrapper(object):
             os.makedirs(localDir)
 
     #####
-    def initSshClient(self):
-        if self.client == SSHClient:
-            self.client = createSSHClient(self.config.remote_server, self.config.remote_port, self.config.remote_user)
+    def create_ssh_client(self):
+        self.ssh_client = createSSHClient(self.config.remote_server, self.config.remote_port, self.config.remote_user)
 
 
 #####
@@ -259,13 +260,14 @@ class SourceSync(AnvilTool):
         rsync = self.rsyncCmd()
         rsync.append("-r")
         for file in self.cfg.config.exclude_files:
-           rsync.append('--exclude=\"{}\"'.format(file))
+           rsync.append('--exclude={}'.format(file))
         for file in self.cfg.config.exclude_from_files:
             rsync.append("--exclude-from={}{}".format(self.cfg.localPath, file))
         rsync.append(self.cfg.localPath)
         rsync.append(dest)
         ## Execute. #TODO Interpret the outcome of rsync
         subprocess.call(rsync)
+        # print rsync
 
     #####
     def generateGradleProps(self):
@@ -318,15 +320,37 @@ class SourceBuilder(AnvilTool):
 
     #####
     def executeRemoteCommand(self, cmd=[]):
-        self.cfg.initSshClient()
+        self.cfg.create_ssh_client()
         cmd = "{}{} -p {} {}".format(self.cfg.destPath, self.cfg.config.gradle_build_wrapper_file,
                                       self.cfg.destPath, self.cfg.config.gradle_build_wrapper_task)
-        stdin, stdout, stderr = self.cfg.client.exec_command(cmd)
+        stdin, stdout, stderr = self.cfg.ssh_client.exec_command(cmd)
         for line in stdout:
             print 'O: ' + line.strip('\n')
         for line in stderr:
             print 'E: ' + line.strip('\n')
-        self.cfg.client.close()
+            self.cfg.ssh_client.close()
+
+
+class FilePuller(AnvilTool):
+
+    scp_client = SCPClient
+
+    #####
+    def __init__(self, config=ConfigWrapper):
+        super(FilePuller, self).__init__(config)
+        self.cfg.create_ssh_client()
+        self.scp_client = SCPClient(self.cfg.ssh_client.get_transport())
+
+    #####
+    def pullfile(self, remote_filename="", local_filename=""):
+        self.scp_client.get(remote_filename, local_filename)
+        print "File pulled: {}".format(local_filename)
+
+    def get_result(self):
+        remote_filename = "{}{}{}".format(self.cfg.destPath, self.cfg.config.remote_result_dir,
+                                   self.cfg.config.remote_result_file)
+        local_filename = "{}{}/{}".format(self.cfg.localPath, ANVIL_DIR_NAME, self.cfg.config.remote_result_file)
+        self.pullfile(remote_filename, local_filename)
 
 #####
 # RUNTIME
@@ -341,3 +365,6 @@ sync.updateLocalProperties()
 
 build = SourceBuilder(configWrapper)
 build.executeRemoteCommand(None)
+
+pull = FilePuller(configWrapper)
+pull.get_result()
