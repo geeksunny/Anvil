@@ -1,13 +1,13 @@
 {
   "project_parent_dir":"~/Documents/",
-  "project_dir_name":"foot-locker",
+  "project_dir_name":"ac-moore",
   "remote_user":"worker",
   "remote_server":"drone.local",
   "remote_port":9022,
   "remote_public_key":"~/.ssh/drone.pub",
   "remote_destination_dir":"~/rsync/",
   "remote_result_dir":"app/build/outputs/apk/",
-  "remote_result_file":"app-footlocker-uat-unaligned.apk",
+  "remote_result_file":"app-staging-debug.apk",
   "exclude_from_files":[
     ".gitignore"
   ],
@@ -34,5 +34,5 @@
     "sdk.dir":"/home/worker/android-sdk-linux"
   },
   "gradle_build_wrapper_file":"gradlew",
-  "gradle_build_wrapper_task":"assembleFootlockerUat"
+  "gradle_build_wrapper_task":"assembleStagingDebug"
 }

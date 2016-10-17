@@ -275,8 +275,8 @@ class SourceSync(AnvilTool):
     #####
     def generateGradleProps(self):
         g = GradleProperties(prepare_path(self.cfg.config.gradle_properties_path_local))
-        g.addDict(self.cfg.config.gradle_properties_add)
         g.removeArray(self.cfg.config.gradle_properties_remove)
+        g.addDict(self.cfg.config.gradle_properties_add)
         return g.generate()
 
     #####
