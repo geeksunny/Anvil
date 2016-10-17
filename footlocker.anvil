@@ -6,6 +6,7 @@
   "remote_port":9022,
   "remote_public_key":"~/.ssh/drone.pub",
   "remote_destination_dir":"~/rsync/",
+  "remote_result_file":"app/build/outputs/apk/app-staging-debug.apk",
   "exclude_from_files":[
     ".gitignore"
   ],
@@ -31,9 +32,5 @@
     "sdk.dir":"/home/worker/android-sdk-linux"
   },
   "gradle_build_wrapper_file":"gradlew",
-  "gradle_build_wrapper_task":"assembleStagingDebug",
-  "meta":{
-    "key":"hazc9890csa22ll__-=2s",
-    "value":"dummyData!!!"
-  }
+  "gradle_build_wrapper_task":"assembleStagingDebug"
 }

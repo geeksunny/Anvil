@@ -116,6 +116,7 @@ class AnvilConfig(JsonConfig):
     remote_port = int
     remote_public_key = ""
     remote_destination_dir = ""
+    remote_result_file = ""
     # rsync
     exclude_from_files = []
     exclude_files = []
