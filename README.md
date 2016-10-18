@@ -4,9 +4,9 @@ Anvil is a tool for building Android projects remotely.
 
 ## Basic goals
 
-  1) ~~Connect to server, rsync source changes to server.~~
-  2) ~~Shell in to server, run build command~~
-  3) ~~On successful build, download apk file from server.~~
+  1. ~~Connect to server, rsync source changes to server.~~
+  2. ~~Shell in to server, run build command~~
+  3. ~~On successful build, download apk file from server.~~
 
 ## Requirements for Anvil host
 
