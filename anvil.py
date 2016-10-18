@@ -1,5 +1,4 @@
-# sudo apt-get install pip libssl-dev
-# sudo pip install scp configparser
+#!/usr/bin/python
 
 import hashlib
 import json
@@ -368,7 +367,21 @@ class FilePuller(AnvilTool):
                                           self.cfg.config.remote_result_file)
         local_filename = "{}{}/{}".format(self.cfg.local_path, ANVIL_DIR_NAME, self.cfg.config.remote_result_file)
         self.pull_file(remote_filename, local_filename)
+        return local_filename
 
+
+#####
+class AdbInterface(AnvilTool):
+
+    #####
+    def __init__(self, config=ConfigWrapper):
+        super(AdbInterface, self).__init__(config)
+
+    #####
+    def install_apk(self, filepath=""):
+        cmd = ['adb', 'install', filepath]
+        print "\nInstalling {} into default device".format(filename)
+        subprocess.call(cmd)
 
 #####
 # RUNTIME
@@ -385,4 +398,7 @@ build = SourceBuilder(configWrapper)
 build.build_project()
 
 pull = FilePuller(configWrapper)
-pull.get_result()
+filename = pull.get_result()
+
+adb = AdbInterface(configWrapper)
+adb.install_apk(filename)
